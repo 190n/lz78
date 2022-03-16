@@ -4,21 +4,14 @@ const Allocator = std.mem.Allocator;
 
 const ALPHABET = 256;
 
-const Code = u16;
-
-const SpecialCode = enum(Code) {
-    stop,
-    empty,
-    start,
-    max = std.math.maxInt(Code),
-};
+const Code = @import("./code.zig");
 
 const TrieNode = struct {
     children: [ALPHABET]?*TrieNode,
-    code: Code,
+    code: Code.Code,
     allocator: Allocator,
 
-    fn init(allocator: Allocator, code: Code) !*TrieNode {
+    fn init(allocator: Allocator, code: Code.Code) !*TrieNode {
         var n = try allocator.create(TrieNode);
         n.* = .{
             .children = [_]?*TrieNode{null} ** ALPHABET,
@@ -29,7 +22,7 @@ const TrieNode = struct {
     }
 
     fn create(allocator: Allocator) !*TrieNode {
-        return init(allocator, @enumToInt(SpecialCode.empty));
+        return init(allocator, Code.empty);
     }
 
     fn deinit(self: *TrieNode) void {
@@ -73,7 +66,7 @@ test "TrieNode.init" {
 test "TrieNode.create" {
     const n = try TrieNode.create(std.testing.allocator);
     defer n.deinit();
-    try expectEqual(@enumToInt(SpecialCode.empty), n.code);
+    try expectEqual(Code.empty, n.code);
 }
 
 test "TrieNode.reset" {
