@@ -28,14 +28,38 @@ const TrieNode = struct {
         return n;
     }
 
+    fn create(allocator: Allocator) !*TrieNode {
+        return init(allocator, @enumToInt(SpecialCode.empty));
+    }
+
     fn deinit(self: *TrieNode) void {
         self.allocator.destroy(self);
     }
-};
 
-fn trieCreate(allocator: Allocator) !*TrieNode {
-    return TrieNode.init(allocator, @enumToInt(SpecialCode.empty));
-}
+    fn reset(self: *TrieNode) void {
+        for (self.children) |c, i| {
+            if (c) |node| {
+                node.delete();
+                self.children[i] = null;
+            }
+        }
+    }
+
+    fn delete(self: *TrieNode) void {
+        for (self.children) |c, i| {
+            if (c) |node| {
+                node.delete();
+                self.children[i] = null;
+            }
+        }
+
+        self.deinit();
+    }
+
+    fn step(self: *TrieNode, symbol: u8) ?*TrieNode {
+        return self.children[symbol];
+    }
+};
 
 test "TrieNode.init" {
     const n = try TrieNode.init(std.testing.allocator, 56);
@@ -46,8 +70,32 @@ test "TrieNode.init" {
     }
 }
 
-test "trieCreate" {
-    const n = try trieCreate(std.testing.allocator);
+test "TrieNode.create" {
+    const n = try TrieNode.create(std.testing.allocator);
     defer n.deinit();
     try expectEqual(@enumToInt(SpecialCode.empty), n.code);
+}
+
+test "TrieNode.reset" {
+    const root = try TrieNode.create(std.testing.allocator);
+    defer root.deinit();
+    root.children['a'] = try TrieNode.init(std.testing.allocator, 'a');
+    root.reset();
+    try expectEqual(@as(?*TrieNode, null), root.children['a']);
+}
+
+test "TrieNode.delete" {
+    const root = try TrieNode.create(std.testing.allocator);
+    root.children['a'] = try TrieNode.init(std.testing.allocator, 'a');
+    root.children['b'] = try TrieNode.init(std.testing.allocator, 'b');
+    root.delete();
+}
+
+test "TrieNode.step" {
+    const root = try TrieNode.create(std.testing.allocator);
+    defer root.delete();
+    root.children['a'] = try TrieNode.init(std.testing.allocator, 'a');
+    root.children['b'] = try TrieNode.init(std.testing.allocator, 'b');
+    try expectEqual(root.children['a'], root.step('a'));
+    try expectEqual(root.children['b'], root.step('b'));
 }
