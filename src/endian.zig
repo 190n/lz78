@@ -26,7 +26,7 @@ test "storeBigEndian" {
     storeBigEndian(u64, &eight, 0x0123456789ABCDEF);
 
     try expect(std.mem.eql(u8, &byte, &[_]u8{0xAA}));
-    try expect(std.mem.eql(u8, &two, &[_]u8{0xBB, 0xAA}));
-    try expect(std.mem.eql(u8, &four, &[_]u8{0xDD, 0xCC, 0xBB, 0xAA}));
-    try expect(std.mem.eql(u8, &eight, &[_]u8{0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01}));
+    try expect(std.mem.eql(u8, &two, &[_]u8{0xAA, 0xBB}));
+    try expect(std.mem.eql(u8, &four, &[_]u8{0xAA, 0xBB, 0xCC, 0xDD}));
+    try expect(std.mem.eql(u8, &eight, &[_]u8{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}));
 }
