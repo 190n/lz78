@@ -1,12 +1,12 @@
 const std = @import("std");
 
 pub fn storeBigEndian(comptime T: type, dest: [*]u8, src: T) void {
-    comptime var i = 0;
     const bits = @typeInfo(@TypeOf(src)).Int.bits;
     if (bits % 8 != 0) {
         @compileError("Source argument to storeBigEndian must be a whole number of bytes");
     }
     const bytes = bits / 8;
+    comptime var i = 0;
     inline while (i < bytes) : (i += 1) {
         dest[bytes - i - 1] = @intCast(u8, (src & (0xff << (i * 8))) >> (i * 8));
     }
