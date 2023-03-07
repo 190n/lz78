@@ -2,47 +2,47 @@ const std = @import("std");
 
 const Code = @import("./code.zig");
 
-pub const TrieNode = struct {
-    children: [256]?*TrieNode,
-    code: Code.Code,
+const TrieNode = @This();
 
-    pub fn create(allocator: std.mem.Allocator, code: Code.Code) !*TrieNode {
-        const tn = try allocator.create(TrieNode);
-        tn.* = .{
-            .children = [_]?*TrieNode{null} ** 256,
-            .code = code,
-        };
-        return tn;
-    }
+children: [256]?*TrieNode,
+code: Code.Code,
 
-    /// Delete every child of the trie node and then the node itself
-    pub fn destroy(self: *TrieNode, allocator: std.mem.Allocator) void {
-        self.reset(allocator);
-        self.* = undefined;
-        allocator.destroy(self);
-    }
+pub fn create(allocator: std.mem.Allocator, code: Code.Code) !*TrieNode {
+    const tn = try allocator.create(TrieNode);
+    tn.* = .{
+        .children = [_]?*TrieNode{null} ** 256,
+        .code = code,
+    };
+    return tn;
+}
 
-    /// Delete every child of the trie node
-    pub fn reset(self: *TrieNode, allocator: std.mem.Allocator) void {
-        for (&self.children) |*child| {
-            if (child.*) |ptr| {
-                ptr.destroy(allocator);
-            }
-            child.* = null;
+/// Delete every child of the trie node and then the node itself
+pub fn destroy(self: *TrieNode, allocator: std.mem.Allocator) void {
+    self.reset(allocator);
+    self.* = undefined;
+    allocator.destroy(self);
+}
+
+/// Delete every child of the trie node
+pub fn reset(self: *TrieNode, allocator: std.mem.Allocator) void {
+    for (&self.children) |*child| {
+        if (child.*) |ptr| {
+            ptr.destroy(allocator);
         }
+        child.* = null;
     }
+}
 
-    pub fn createRoot() TrieNode {
-        return .{
-            .children = [_]?*TrieNode{null} ** 256,
-            .code = Code.empty,
-        };
-    }
+pub fn createRoot() TrieNode {
+    return .{
+        .children = [_]?*TrieNode{null} ** 256,
+        .code = Code.empty,
+    };
+}
 
-    pub fn step(self: *const TrieNode, sym: u8) ?*TrieNode {
-        return self.children[sym];
-    }
-};
+pub fn step(self: *const TrieNode, sym: u8) ?*TrieNode {
+    return self.children[sym];
+}
 
 test "TrieNode.create" {
     var tn = try TrieNode.create(std.testing.allocator, 50);

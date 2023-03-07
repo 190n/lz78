@@ -2,10 +2,86 @@ const std = @import("std");
 
 const io = @import("./io.zig");
 const Code = @import("./code.zig");
+const TrieNode = @import("./Trie.zig");
+const FileHeader = @import("./FileHeader.zig");
 
-pub fn main() anyerror!void {
-    var bufWrite = std.io.bufferedWriter(std.io.getStdOut().writer());
-    var bw = std.io.bitWriter(.Little, bufWrite.writer());
-    try bw.writeBits(@as(u16, 0x1234), 16);
-    try bufWrite.flush();
+fn bitLength(_code: Code.Code) u5 {
+    var code = _code;
+    if (code == 0) return 1;
+    var length: u5 = 0;
+    while (code != 0) {
+        length += 1;
+        code >>= 1;
+    }
+    return length;
+}
+
+pub fn main() !void {
+    var bufWriter = std.io.bufferedWriter(std.io.getStdOut().writer());
+    var bitWriter = std.io.bitWriter(.Little, bufWriter.writer());
+
+    var bufReader = std.io.bufferedReader(std.io.getStdIn().reader());
+    var reader = bufReader.reader();
+
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var allocator = arena.allocator();
+
+    var root = TrieNode.createRoot();
+    defer root.reset(allocator);
+
+    var curr_node = &root;
+    var prev_node: ?*TrieNode = null;
+
+    var prev_sym: u8 = 0;
+    var next_code = Code.start;
+
+    const header = FileHeader.FileHeader{
+        .magic = std.mem.nativeToLittle(u32, FileHeader.magic),
+        .protection = std.mem.nativeToLittle(u16, 0o644),
+    };
+    try bufWriter.writer().writeAll(std.mem.asBytes(&header));
+
+    while (reader.readByte()) |curr_sym| {
+        const next_node = curr_node.step(curr_sym);
+        if (next_node) |n| {
+            prev_node = curr_node;
+            curr_node = n;
+        } else {
+            try io.writePair(&bitWriter, .{
+                .code = curr_node.code,
+                .sym = curr_sym,
+            }, bitLength(next_code));
+            curr_node.children[curr_sym] = try TrieNode.create(allocator, next_code);
+            curr_node = &root;
+            next_code += 1;
+        }
+
+        if (next_code == Code.max) {
+            root.reset(allocator);
+            curr_node = &root;
+            next_code = Code.start;
+        }
+
+        prev_sym = curr_sym;
+    } else |e| switch (e) {
+        error.EndOfStream => {},
+        else => |other| return other,
+    }
+
+    if (curr_node != &root) {
+        try io.writePair(&bitWriter, .{
+            .code = prev_node.?.code,
+            .sym = prev_sym,
+        }, bitLength(next_code));
+        next_code = (next_code + 1) % Code.max;
+    }
+
+    try io.writePair(&bitWriter, .{
+        .code = Code.stop,
+        .sym = 0,
+    }, bitLength(next_code));
+
+    try bitWriter.flushBits();
+    try bufWriter.flush();
 }
