@@ -1,94 +1,80 @@
 const std = @import("std");
-const expectEqual = std.testing.expectEqual;
-const Allocator = std.mem.Allocator;
-
-const ALPHABET = 256;
 
 const Code = @import("./code.zig");
 
-const Self = @This();
+pub const TrieNode = struct {
+    children: [256]?*TrieNode,
+    code: Code.Code,
 
-children: [ALPHABET]?*Self,
-code: Code.Code,
-allocator: Allocator,
-
-pub fn init(allocator: Allocator, code: Code.Code) !*Self {
-    var n = try allocator.create(Self);
-    n.* = .{
-        .children = [_]?*Self{null} ** ALPHABET,
-        .code = code,
-        .allocator = allocator,
-    };
-    return n;
-}
-
-pub fn create(allocator: Allocator) !*Self {
-    return init(allocator, Code.empty);
-}
-
-pub fn deinit(self: *Self) void {
-    self.allocator.destroy(self);
-}
-
-pub fn reset(self: *Self) void {
-    for (self.children) |*c| {
-        if (c.*) |node| {
-            node.delete();
-            c.* = null;
-        }
+    pub fn create(allocator: std.mem.Allocator, code: Code.Code) !*TrieNode {
+        const tn = try allocator.create(TrieNode);
+        tn.* = .{
+            .children = [_]?*TrieNode{null} ** 256,
+            .code = code,
+        };
+        return tn;
     }
-}
 
-pub fn delete(self: *Self) void {
-    for (self.children) |*c| {
-        if (c.*) |node| {
-            node.delete();
-            c.* = null;
+    /// Delete every child of the trie node and then the node itself
+    pub fn destroy(self: *TrieNode, allocator: std.mem.Allocator) void {
+        self.reset(allocator);
+        self.* = undefined;
+        allocator.destroy(self);
+    }
+
+    /// Delete every child of the trie node
+    pub fn reset(self: *TrieNode, allocator: std.mem.Allocator) void {
+        for (&self.children) |*child| {
+            if (child.*) |ptr| {
+                ptr.destroy(allocator);
+            }
+            child.* = null;
         }
     }
 
-    self.deinit();
-}
+    pub fn createRoot() TrieNode {
+        return .{
+            .children = [_]?*TrieNode{null} ** 256,
+            .code = Code.empty,
+        };
+    }
 
-pub fn step(self: *const Self, symbol: u8) ?*Self {
-    return self.children[symbol];
-}
+    pub fn step(self: *const TrieNode, sym: u8) ?*TrieNode {
+        return self.children[sym];
+    }
+};
 
-test "Trie.init" {
-    const n = try Self.init(std.testing.allocator, 56);
-    defer n.deinit();
-    try expectEqual(@as(u16, 56), n.code);
-    for (n.children) |c| {
-        try expectEqual(@as(?*Self, null), c);
+test "TrieNode.create" {
+    var tn = try TrieNode.create(std.testing.allocator, 50);
+    defer tn.destroy(std.testing.allocator);
+    try std.testing.expectEqual(@as(u16, 50), tn.code);
+
+    try std.testing.expectEqualSlices(?*TrieNode, &[_]?*TrieNode{null} ** 256, &tn.children);
+
+    for (tn.children) |c| {
+        try std.testing.expectEqual(@as(?*TrieNode, null), c);
     }
 }
 
-test "Trie.create" {
-    const n = try Self.create(std.testing.allocator);
-    defer n.deinit();
-    try expectEqual(Code.empty, n.code);
+test "TrieNode.createRoot" {
+    var root = TrieNode.createRoot();
+    try std.testing.expectEqual(Code.empty, root.code);
+    try std.testing.expectEqualSlices(?*TrieNode, &[_]?*TrieNode{null} ** 256, &root.children);
 }
 
-test "Trie.reset" {
-    const root = try Self.create(std.testing.allocator);
-    defer root.deinit();
-    root.children['a'] = try Self.init(std.testing.allocator, 'a');
-    root.reset();
-    try expectEqual(@as(?*Self, null), root.children['a']);
+test "TrieNode.reset" {
+    var root = TrieNode.createRoot();
+    root.children['a'] = try TrieNode.create(std.testing.allocator, 50);
+    root.children['b'] = try TrieNode.create(std.testing.allocator, 60);
+    root.reset(std.testing.allocator);
+    try std.testing.expectEqual(@as(?*TrieNode, null), root.children['a']);
+    try std.testing.expectEqual(@as(?*TrieNode, null), root.children['b']);
 }
 
-test "Trie.delete" {
-    const root = try Self.create(std.testing.allocator);
-    root.children['a'] = try Self.init(std.testing.allocator, 'a');
-    root.children['b'] = try Self.init(std.testing.allocator, 'b');
-    root.delete();
-}
-
-test "Trie.step" {
-    const root = try Self.create(std.testing.allocator);
-    defer root.delete();
-    root.children['a'] = try Self.init(std.testing.allocator, 'a');
-    root.children['b'] = try Self.init(std.testing.allocator, 'b');
-    try expectEqual(root.children['a'], root.step('a'));
-    try expectEqual(root.children['b'], root.step('b'));
+test "TrieNode.step" {
+    var root = TrieNode.createRoot();
+    defer root.reset(std.testing.allocator);
+    root.children['a'] = try TrieNode.create(std.testing.allocator, 50);
+    try std.testing.expectEqual(@as(Code.Code, 50), root.step('a').?.code);
+    try std.testing.expectEqual(@as(?*TrieNode, null), root.step('b'));
 }

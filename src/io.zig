@@ -1,56 +1,58 @@
 const std = @import("std");
-const File = std.fs.File;
-const builtin = @import("builtin");
 
-const FileHeader = @import("./FileHeader.zig").FileHeader;
-const magic = @import("./FileHeader.zig").magic;
-const endianness = @import("builtin").cpu.arch.endian();
+const Code = @import("./code.zig").Code;
 
-pub fn readHeader(infile: File, header: *FileHeader) !void {
-    var buf: FileHeader = undefined;
-    const read = try infile.readAll(@ptrCast([*]u8, &buf)[0..@sizeOf(FileHeader)]);
-    if (read < @sizeOf(FileHeader)) {
-        return error.UnexpectedEOF;
-    }
+pub const Pair = struct {
+    code: Code,
+    sym: u8,
+};
 
-    if (endianness == .Little) {
-        std.mem.byteSwapAllFields(FileHeader, &buf);
-    }
-    header.* = buf;
+/// bit_writer is pointer to little-endian std.io.BitWriter
+pub fn writePair(bit_writer: anytype, pair: Pair, bit_len: u4) !void {
+    try bit_writer.writeBits(pair.code, bit_len);
+    try bit_writer.writeBits(pair.sym, 8);
 }
 
-pub fn writeHeader(outfile: File, header: *const FileHeader) !void {
-    var h = header.*;
-    if (endianness == .Little) {
-        std.mem.byteSwapAllFields(FileHeader, &h);
+/// bit_reader is pointer to little-endian std.io.BitReader
+pub fn readPair(bit_reader: anytype, bit_len: u4) !Pair {
+    var p = Pair{ .code = 0, .sym = 0 };
+    p.code = try bit_reader.readBitsNoEof(Code, bit_len);
+    p.sym = try bit_reader.readBitsNoEof(u8, 8);
+    return p;
+}
+
+test "writePair" {
+    var list = std.ArrayList(u8).init(std.testing.allocator);
+    defer list.deinit();
+    var bw = std.io.bitWriter(.Little, list.writer());
+
+    try writePair(&bw, .{ .code = 0b101, .sym = 0xff }, 3);
+    try writePair(&bw, .{ .code = 0b11100000110, .sym = 0xff }, 11);
+    try bw.flushBits();
+
+    try std.testing.expectEqualSlices(u8, &[_]u8{
+        (0b11111 << 3) | 0b101, // 3 bit code + first 5 bits of sym
+        (0b00110 << 3) | 0b111, // 5 bits of next code + remaining 3 bits of sym
+        (0b11 << 6) | 0b111000, // first 2 bits of sym + remaining 6 bits of code
+        0b111111, // rest of sym
+    }, list.items);
+}
+
+test "readPair" {
+    var stream = std.io.fixedBufferStream(&[_]u8{
+        0b11111101,
+        0b00110111,
+        0b11111000,
+        0b111111,
+    });
+    var br = std.io.bitReader(.Little, stream.reader());
+
+    const codes = [_]Code{ 0b101, 0b11100000110 };
+    const syms = [_]u8{ 0xff, 0xff };
+    const bit_lens = [_]u4{ 3, 11 };
+    for (bit_lens, 0..) |bl, i| {
+        const pair = try readPair(&br, bl);
+        try std.testing.expectEqual(codes[i], pair.code);
+        try std.testing.expectEqual(syms[i], pair.sym);
     }
-
-    try outfile.writeAll(@ptrCast([*]u8, &h)[0..@sizeOf(FileHeader)]);
-}
-
-test "io.readHeader" {
-    var dir = std.testing.tmpDir(.{});
-    defer dir.cleanup();
-    var file = try dir.dir.createFile("header", .{ .read = true });
-    defer file.close();
-    try file.writeAll(&[_]u8{0xBA, 0xAD, 0xBA, 0xAC, 0x12, 0x34, 0x00, 0x00});
-    var h: FileHeader = undefined;
-    try file.seekTo(0);
-    try readHeader(file, &h);
-    try std.testing.expectEqual(magic, h.magic);
-    try std.testing.expectEqual(@as(u16, 0x1234), h.protection);
-}
-
-test "io.writeHeader" {
-    var dir = std.testing.tmpDir(.{});
-    defer dir.cleanup();
-    var file = try dir.dir.createFile("header", .{ .read = true });
-    defer file.close();
-    const h = FileHeader{ .magic = magic, .protection = 0x1234 };
-    try writeHeader(file, &h);
-    try file.seekTo(0);
-    var buf: [@sizeOf(FileHeader)]u8 = undefined;
-    const read = try file.readAll(&buf);
-    try std.testing.expectEqual(@as(usize, @sizeOf(FileHeader)), read);
-    try std.testing.expect(std.mem.eql(u8, &buf, &[_]u8{0xBA, 0xAD, 0xBA, 0xAC, 0x12, 0x34, 0x00, 0x00}));
 }
