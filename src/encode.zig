@@ -5,17 +5,6 @@ const Code = @import("./code.zig");
 const TrieNode = @import("./Trie.zig");
 const FileHeader = @import("./FileHeader.zig");
 
-fn bitLength(_code: Code.Code) u5 {
-    var code = _code;
-    if (code == 0) return 1;
-    var length: u5 = 0;
-    while (code != 0) {
-        length += 1;
-        code >>= 1;
-    }
-    return length;
-}
-
 pub fn main() !void {
     var bufWriter = std.io.bufferedWriter(std.io.getStdOut().writer());
     var bitWriter = std.io.bitWriter(.Little, bufWriter.writer());
@@ -50,7 +39,7 @@ pub fn main() !void {
             try io.writePair(&bitWriter, .{
                 .code = curr_node.code,
                 .sym = curr_sym,
-            }, bitLength(next_code));
+            }, io.bitLength(next_code));
             curr_node.children[curr_sym] = try TrieNode.create(allocator, next_code);
             curr_node = &root;
             next_code += 1;
@@ -73,14 +62,14 @@ pub fn main() !void {
         try io.writePair(&bitWriter, .{
             .code = prev_node.?.code,
             .sym = prev_sym,
-        }, bitLength(next_code));
+        }, io.bitLength(next_code));
         next_code = (next_code + 1) % Code.max;
     }
 
     try io.writePair(&bitWriter, .{
         .code = Code.stop,
         .sym = 0,
-    }, bitLength(next_code));
+    }, io.bitLength(next_code));
 
     try bitWriter.flushBits();
     try bufWriter.flush();

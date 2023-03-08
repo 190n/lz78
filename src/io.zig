@@ -8,6 +8,17 @@ pub const Pair = struct {
     sym: u8,
 };
 
+pub fn bitLength(_code: Code) u5 {
+    var code = _code;
+    if (code == 0) return 1;
+    var length: u5 = 0;
+    while (code != 0) {
+        length += 1;
+        code >>= 1;
+    }
+    return length;
+}
+
 /// bit_writer is pointer to little-endian std.io.BitWriter
 pub fn writePair(bit_writer: anytype, pair: Pair, bit_len: u5) !void {
     try bit_writer.writeBits(pair.code, bit_len);
@@ -30,6 +41,7 @@ pub fn readHeader(reader: anytype) !FileHeader.FileHeader {
     if (header.magic != FileHeader.magic) {
         return error.InvalidMagicNumber;
     }
+    return header;
 }
 
 pub fn writeHeader(writer: anytype, _header: FileHeader.FileHeader) !void {
