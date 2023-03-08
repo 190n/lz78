@@ -58,6 +58,7 @@ pub fn main() !void {
 
         if (next_code == Code.max) {
             root.reset(allocator);
+            std.debug.assert(arena.reset(.retain_capacity));
             curr_node = &root;
             next_code = Code.start;
         }
