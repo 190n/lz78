@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const Code = @import("./code.zig").Code;
+const FileHeader = @import("./FileHeader.zig");
 
 pub const Pair = struct {
     code: Code,
@@ -19,6 +20,24 @@ pub fn readPair(bit_reader: anytype, bit_len: u5) !Pair {
     p.code = try bit_reader.readBitsNoEof(Code, bit_len);
     p.sym = try bit_reader.readBitsNoEof(u8, 8);
     return p;
+}
+
+pub fn readHeader(reader: anytype) !FileHeader.FileHeader {
+    var header = try reader.readStruct(FileHeader.FileHeader);
+    header.magic = std.mem.littleToNative(u32, header.magic);
+    header.protection = std.mem.littleToNative(u16, header.protection);
+
+    if (header.magic != FileHeader.magic) {
+        return error.InvalidMagicNumber;
+    }
+}
+
+pub fn writeHeader(writer: anytype, _header: FileHeader.FileHeader) !void {
+    var header = FileHeader.FileHeader{
+        .magic = std.mem.nativeToLittle(u32, _header.magic),
+        .protection = std.mem.nativeToLittle(u16, _header.protection),
+    };
+    try writer.writeAll(std.mem.asBytes(&header));
 }
 
 test "writePair" {

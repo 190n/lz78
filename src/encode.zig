@@ -36,11 +36,10 @@ pub fn main() !void {
     var prev_sym: u8 = 0;
     var next_code = Code.start;
 
-    const header = FileHeader.FileHeader{
-        .magic = std.mem.nativeToLittle(u32, FileHeader.magic),
-        .protection = std.mem.nativeToLittle(u16, 0o644),
-    };
-    try bufWriter.writer().writeAll(std.mem.asBytes(&header));
+    try io.writeHeader(bufWriter.writer(), FileHeader.FileHeader{
+        .magic = FileHeader.magic,
+        .protection = 0o644,
+    });
 
     while (reader.readByte()) |curr_sym| {
         const next_node = curr_node.step(curr_sym);
