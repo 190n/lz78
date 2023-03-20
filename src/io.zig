@@ -20,13 +20,22 @@ pub fn bitLength(_code: Code) u5 {
 }
 
 /// bit_writer is pointer to little-endian std.io.BitWriter
-pub fn writePair(bit_writer: anytype, pair: Pair, bit_len: u5) !void {
+pub fn writePair(
+    comptime BaseWriter: type,
+    bit_writer: *std.io.BitWriter(.Little, BaseWriter),
+    pair: Pair,
+    bit_len: u5,
+) !void {
     try bit_writer.writeBits(pair.code, bit_len);
     try bit_writer.writeBits(pair.sym, 8);
 }
 
 /// bit_reader is pointer to little-endian std.io.BitReader
-pub fn readPair(bit_reader: anytype, bit_len: u5) !Pair {
+pub fn readPair(
+    comptime BaseReader: type,
+    bit_reader: *std.io.BitReader(.Little, BaseReader),
+    bit_len: u5,
+) !Pair {
     var p = Pair{ .code = 0, .sym = 0 };
     p.code = try bit_reader.readBitsNoEof(Code, bit_len);
     p.sym = try bit_reader.readBitsNoEof(u8, 8);

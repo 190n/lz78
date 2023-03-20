@@ -36,7 +36,7 @@ pub fn main() !void {
             prev_node = curr_node;
             curr_node = n;
         } else {
-            try io.writePair(&bitWriter, .{
+            try io.writePair(@TypeOf(bufWriter.writer()), &bitWriter, .{
                 .code = curr_node.code,
                 .sym = curr_sym,
             }, io.bitLength(next_code));
@@ -59,14 +59,14 @@ pub fn main() !void {
     }
 
     if (curr_node != &root) {
-        try io.writePair(&bitWriter, .{
+        try io.writePair(@TypeOf(bufWriter.writer()), &bitWriter, .{
             .code = prev_node.?.code,
             .sym = prev_sym,
         }, io.bitLength(next_code));
         next_code = (next_code + 1) % Code.max;
     }
 
-    try io.writePair(&bitWriter, .{
+    try io.writePair(@TypeOf(bufWriter.writer()), &bitWriter, .{
         .code = Code.stop,
         .sym = 0,
     }, io.bitLength(next_code));
